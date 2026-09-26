@@ -1,0 +1,1367 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Daily Expense Manager - Uganda (UGX / USh)</title>
+    <meta name="description" content="A professional daily expense and personal finance manager tailored for Uganda (UGX / USh) with offline PWA support and Supabase integration." />
+    <meta property="og:title" content="Daily Expense Manager Uganda" />
+    <meta property="og:description" content="Manage daily expenses, income, budgets, savings goals and debts in Ugandan Shillings (UGX/USh)." />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#0F766E" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="ExpenseUG" />
+    <link rel="icon" type="image/png" href="./assets/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./assets/icons/icon-192.png" />
+    <link rel="manifest" href="./manifest.json" />
+
+    <!-- External Stylesheet -->
+    <link rel="stylesheet" href="./style.css?v=3" />
+
+    <!-- CDN Libraries (Zero Build-step required, runs directly in browser & GitHub Pages) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  </head>
+  <body>
+    <!-- Account Loading Screen (Displays while session & financial ledger are retrieved) -->
+    <div id="account-loading-screen" class="account-loading-overlay">
+      <div class="account-loading-card">
+        <div class="account-loading-logo-wrap">
+          <img src="./assets/logo.png" alt="Daily Expense Manager Logo" class="account-loading-logo" />
+          <div class="account-loading-spinner-ring"></div>
+          <div class="account-loading-pulse-ring"></div>
+        </div>
+        <h3 class="account-loading-title" id="loading-screen-title">Loading your account...</h3>
+        <p class="account-loading-subtitle" id="loading-screen-subtitle">Preparing your transactions, budgets & analytics</p>
+        <div class="account-loading-progress-bar">
+          <div class="account-loading-progress-fill"></div>
+        </div>
+        <div class="account-loading-step" id="loading-screen-step">
+          <i data-lucide="loader-2" class="spin-icon" style="width: 15px; height: 15px;"></i>
+          <span id="loading-step-text">Verifying secure session...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Offline Indicator Banner -->
+    <div id="offline-banner">
+      <i data-lucide="wifi-off"></i> You are currently offline. Local changes are saved on your device.
+    </div>
+
+    <!-- Main Application Shell (hidden until session verified) -->
+    <div id="app-container" style="display: none;">
+      <!-- Desktop Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <img src="./assets/logo.png" alt="Daily Expense Manager Logo" class="sidebar-logo" />
+          <div class="sidebar-brand">
+            <div class="sidebar-brand-title">Daily Expense Manager</div>
+            <div class="sidebar-brand-subtitle">Uganda • UGX / USh</div>
+          </div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a href="#dashboard" class="nav-link active" data-view="dashboard">
+            <i data-lucide="layout-dashboard"></i>
+            <span>Dashboard</span>
+          </a>
+          <a href="#expenses" class="nav-link" data-view="expenses">
+            <i data-lucide="credit-card"></i>
+            <span>Expenses</span>
+          </a>
+          <a href="#income" class="nav-link" data-view="income">
+            <i data-lucide="trending-up"></i>
+            <span>Income</span>
+          </a>
+          <a href="#budgets" class="nav-link" data-view="budgets">
+            <i data-lucide="pie-chart"></i>
+            <span>Budgets</span>
+          </a>
+          <a href="#savings" class="nav-link" data-view="savings">
+            <i data-lucide="piggy-bank"></i>
+            <span>Savings</span>
+          </a>
+          <a href="#debts" class="nav-link" data-view="debts">
+            <i data-lucide="hand-coins"></i>
+            <span>Debts</span>
+          </a>
+          <a href="#reports" class="nav-link" data-view="reports">
+            <i data-lucide="bar-chart-3"></i>
+            <span>Reports</span>
+          </a>
+          <a href="#settings" class="nav-link" data-view="settings">
+            <i data-lucide="settings"></i>
+            <span>Settings</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <!-- In-app PWA install button -->
+          <button id="sidebar-install-btn" class="btn-secondary" style="display: none; width: 100%; justify-content: center; font-size: 0.8rem;">
+            <i data-lucide="download"></i>
+            <span>Install App</span>
+          </button>
+
+          <div class="user-badge">
+            <div class="user-avatar" id="sidebar-avatar"><i data-lucide="user"></i></div>
+            <div class="user-info">
+              <div class="user-name" id="sidebar-user-name">Not signed in</div>
+              <div class="user-meta" id="sidebar-user-email">Please sign in</div>
+            </div>
+          </div>
+          <button id="auth-toggle-btn" class="btn-secondary" style="width: 100%; justify-content: center; font-size: 0.82rem;">
+            <i data-lucide="user-cog" id="auth-btn-icon"></i>
+            <span id="auth-btn-text">Account</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Workspace -->
+      <main class="main-wrapper">
+        <!-- Top App Bar -->
+        <header class="top-header">
+          <div class="header-left">
+            <h1 class="page-title" id="page-heading">Dashboard</h1>
+            <div class="search-box">
+              <i data-lucide="search"></i>
+              <input type="text" id="global-search" placeholder="Search transactions, category, note, MoMo..." />
+            </div>
+          </div>
+
+          <div class="header-right">
+            <button class="icon-btn" id="theme-toggle-btn" title="Toggle Light / Dark Mode" aria-label="Toggle Theme">
+              <i data-lucide="moon" id="theme-icon"></i>
+            </button>
+            <button class="icon-btn" id="header-logout-btn" title="Logout" aria-label="Logout" style="color: var(--accent-red);">
+              <i data-lucide="log-out"></i>
+            </button>
+            <button class="btn-primary" id="header-add-expense-btn">
+              <i data-lucide="plus"></i>
+              <span>Add Expense</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- Dynamic Content Body -->
+        <div class="content-body">
+          <!-- Banner for Supabase Connection State -->
+          <div id="cloud-sync-banner" class="notice-banner" style="display: none;">
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <i data-lucide="database"></i>
+              <span id="cloud-sync-message">Cloud sync enabled with Supabase.</span>
+            </div>
+            <button id="cloud-sync-action-btn" class="btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">
+              Configure
+            </button>
+          </div>
+
+          <!-- ========================================== -->
+          <!-- 1. DASHBOARD VIEW -->
+          <!-- ========================================== -->
+          <section id="view-dashboard" class="view-section active">
+            <!-- Dynamic Financial Stats Summary Cards -->
+            <div class="stats-grid">
+              <!-- Today's Expenses -->
+              <div class="stat-card card-today">
+                <div class="stat-header">
+                  <span class="stat-label">Today's Expenses</span>
+                  <div class="stat-icon"><i data-lucide="calendar"></i></div>
+                </div>
+                <div class="stat-value" id="stat-today-expenses">USh 0</div>
+                <div class="stat-subtext" id="stat-today-count">0 transactions today</div>
+              </div>
+
+              <!-- This Month's Expenses -->
+              <div class="stat-card card-month">
+                <div class="stat-header">
+                  <span class="stat-label">This Month</span>
+                  <div class="stat-icon"><i data-lucide="trending-down"></i></div>
+                </div>
+                <div class="stat-value" id="stat-month-expenses">USh 0</div>
+                <div class="stat-subtext" id="stat-month-compare">Monthly spend</div>
+              </div>
+
+              <!-- Total Income -->
+              <div class="stat-card card-income">
+                <div class="stat-header">
+                  <span class="stat-label">Total Income</span>
+                  <div class="stat-icon"><i data-lucide="trending-up"></i></div>
+                </div>
+                <div class="stat-value" id="stat-total-income">USh 0</div>
+                <div class="stat-subtext" id="stat-income-sources">Inflows this month</div>
+              </div>
+
+              <!-- Current Balance -->
+              <div class="stat-card card-balance">
+                <div class="stat-header">
+                  <span class="stat-label">Current Balance</span>
+                  <div class="stat-icon"><i data-lucide="wallet"></i></div>
+                </div>
+                <div class="stat-value" id="stat-current-balance">USh 0</div>
+                <div class="stat-subtext">Income minus Expenses</div>
+              </div>
+
+              <!-- Budget Remaining -->
+              <div class="stat-card card-budget">
+                <div class="stat-header">
+                  <span class="stat-label">Budget Remaining</span>
+                  <div class="stat-icon"><i data-lucide="target"></i></div>
+                </div>
+                <div class="stat-value" id="stat-budget-remaining">USh 0</div>
+                <div class="stat-subtext" id="stat-budget-pct">Based on monthly target</div>
+              </div>
+            </div>
+
+            <!-- Quick Actions Toolbar -->
+            <div class="quick-actions-bar">
+              <button class="quick-action-btn" id="qa-add-expense">
+                <i data-lucide="plus-circle"></i>
+                <span>Add Expense</span>
+              </button>
+              <button class="quick-action-btn" id="qa-add-income">
+                <i data-lucide="arrow-down-circle"></i>
+                <span>Add Income</span>
+              </button>
+              <button class="quick-action-btn" id="qa-set-budget">
+                <i data-lucide="pie-chart"></i>
+                <span>Set Budget</span>
+              </button>
+              <button class="quick-action-btn" id="qa-new-goal">
+                <i data-lucide="flag"></i>
+                <span>Savings Goal</span>
+              </button>
+              <button class="quick-action-btn" id="qa-add-debt">
+                <i data-lucide="hand-coins"></i>
+                <span>Record Debt</span>
+              </button>
+            </div>
+
+            <!-- Charts & Budget Row -->
+            <div class="dashboard-grid">
+              <div class="card">
+                <div class="card-header">
+                  <h3 class="card-title">Expense Trend (Last 7 Days)</h3>
+                  <span class="stat-subtext">Daily Spending</span>
+                </div>
+                <div style="height: 240px; position: relative;">
+                  <canvas id="chart-dashboard-trend"></canvas>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header">
+                  <h3 class="card-title">Top Categories</h3>
+                  <span class="stat-subtext">This Month</span>
+                </div>
+                <div style="height: 240px; position: relative;">
+                  <canvas id="chart-dashboard-categories"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recent Expenses Table & Cards -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">Recent Expenses</h3>
+                <a href="#expenses" class="btn-secondary" style="font-size: 0.78rem; padding: 0.35rem 0.75rem;">
+                  View All Expenses
+                </a>
+              </div>
+
+              <!-- Desktop Table -->
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Category</th>
+                      <th>Description</th>
+                      <th>Payment Method</th>
+                      <th>Date & Time</th>
+                      <th>Location</th>
+                      <th>Amount</th>
+                      <th style="text-align: right;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashboard-recent-expenses-tbody">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Mobile Cards -->
+              <div class="mobile-card-list" id="dashboard-recent-expenses-mobile">
+                <!-- Populated dynamically -->
+              </div>
+
+              <!-- Empty state for recent expenses -->
+              <div id="dashboard-expenses-empty" class="empty-state" style="display: none;">
+                <div class="empty-state-icon"><i data-lucide="shopping-bag"></i></div>
+                <h4 class="empty-state-title">No expenses recorded yet</h4>
+                <p class="empty-state-text">Start recording your daily food, transport (Matatu), airtime, and shopping.</p>
+                <button class="btn-primary" onclick="window.app.openAddExpenseModal()">
+                  <i data-lucide="plus"></i>
+                  <span>Add Your First Expense</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ========================================== -->
+          <!-- 2. EXPENSES VIEW -->
+          <!-- ========================================== -->
+          <section id="view-expenses" class="view-section">
+            <div class="card-header" style="margin-bottom: 1rem;">
+              <div>
+                <h2 style="font-size: 1.25rem; font-weight: 700;">Expense History</h2>
+                <p class="stat-subtext">Manage, filter, search, and audit your daily expenditures</p>
+              </div>
+              <button class="btn-primary" onclick="window.app.openAddExpenseModal()">
+                <i data-lucide="plus"></i>
+                <span>Add Expense</span>
+              </button>
+            </div>
+
+            <!-- Filter Toolbar -->
+            <div class="filter-toolbar">
+              <select id="expense-filter-category">
+                <option value="all">All Categories</option>
+              </select>
+
+              <select id="expense-filter-payment">
+                <option value="all">All Payment Methods</option>
+                <option value="Cash">Cash</option>
+                <option value="Mobile Money">Mobile Money (MTN/Airtel)</option>
+                <option value="Bank">Bank</option>
+                <option value="Visa/Mastercard">Visa/Mastercard</option>
+                <option value="Other">Other</option>
+              </select>
+
+              <select id="expense-filter-date">
+                <option value="all">All Time</option>
+                <option value="today">Today</option>
+                <option value="this_week">This Week</option>
+                <option value="this_month" selected>This Month</option>
+                <option value="last_month">Last Month</option>
+                <option value="this_year">This Year</option>
+              </select>
+
+              <select id="expense-sort">
+                <option value="date-desc">Newest First</option>
+                <option value="date-asc">Oldest First</option>
+                <option value="amount-desc">Highest Amount</option>
+                <option value="amount-asc">Lowest Amount</option>
+              </select>
+
+              <button class="btn-secondary" id="expense-export-csv-btn" title="Export to CSV">
+                <i data-lucide="file-spreadsheet"></i>
+                <span>CSV</span>
+              </button>
+            </div>
+
+            <!-- Expenses Desktop Table -->
+            <div class="card">
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Category</th>
+                      <th>Description</th>
+                      <th>Payment Method</th>
+                      <th>Date</th>
+                      <th>Time</th>
+                      <th>Location</th>
+                      <th>Receipt</th>
+                      <th>Amount</th>
+                      <th style="text-align: right;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="expenses-table-tbody">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Mobile Cards -->
+              <div class="mobile-card-list" id="expenses-cards-mobile">
+                <!-- Populated dynamically -->
+              </div>
+
+              <!-- Empty State -->
+              <div id="expenses-empty-state" class="empty-state" style="display: none;">
+                <div class="empty-state-icon"><i data-lucide="receipt"></i></div>
+                <h4 class="empty-state-title">No expenses found</h4>
+                <p class="empty-state-text">No expense records match your current filters.</p>
+                <button class="btn-primary" onclick="window.app.openAddExpenseModal()">
+                  <i data-lucide="plus"></i>
+                  <span>Add Expense</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ========================================== -->
+          <!-- 3. INCOME VIEW -->
+          <!-- ========================================== -->
+          <section id="view-income" class="view-section">
+            <div class="card-header" style="margin-bottom: 1rem;">
+              <div>
+                <h2 style="font-size: 1.25rem; font-weight: 700;">Income Management</h2>
+                <p class="stat-subtext">Record salary, business revenue, freelance, and gifts in UGX</p>
+              </div>
+              <button class="btn-primary" onclick="window.app.openAddIncomeModal()">
+                <i data-lucide="plus"></i>
+                <span>Add Income</span>
+              </button>
+            </div>
+
+            <div class="card">
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Source</th>
+                      <th>Description</th>
+                      <th>Payment Method</th>
+                      <th>Date</th>
+                      <th>Notes</th>
+                      <th>Amount</th>
+                      <th style="text-align: right;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="income-table-tbody">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="mobile-card-list" id="income-cards-mobile">
+                <!-- Populated dynamically -->
+              </div>
+
+              <div id="income-empty-state" class="empty-state" style="display: none;">
+                <div class="empty-state-icon"><i data-lucide="trending-up"></i></div>
+                <h4 class="empty-state-title">No income recorded yet</h4>
+                <p class="empty-state-text">Record your salary, Mobile Money transfers, and business earnings.</p>
+                <button class="btn-primary" onclick="window.app.openAddIncomeModal()">
+                  <i data-lucide="plus"></i>
+                  <span>Add Your First Income</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ========================================== -->
+          <!-- 4. BUDGETS VIEW -->
+          <!-- ========================================== -->
+          <section id="view-budgets" class="view-section">
+            <div class="card-header" style="margin-bottom: 1rem;">
+              <div>
+                <h2 style="font-size: 1.25rem; font-weight: 700;">Budgets & Limits</h2>
+                <p class="stat-subtext">Set monthly and category spending limits with automatic alerts</p>
+              </div>
+              <button class="btn-primary" onclick="window.app.openAddBudgetModal()">
+                <i data-lucide="plus"></i>
+                <span>Set Budget</span>
+              </button>
+            </div>
+
+            <!-- Overall Monthly Budget Card -->
+            <div class="card" style="border-left: 4px solid var(--primary);">
+              <div class="card-header">
+                <div>
+                  <h3 class="card-title">Overall Monthly Budget</h3>
+                  <div class="stat-subtext" id="budget-overall-month-label">This Month</div>
+                </div>
+                <div style="font-size: 1.3rem; font-weight: 800;" id="budget-overall-amount">USh 0</div>
+              </div>
+              <div class="progress-bar-container">
+                <div id="budget-overall-fill" class="progress-bar-fill progress-safe" style="width: 0%;"></div>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 0.5rem;">
+                <span id="budget-overall-spent">Spent: USh 0 (0%)</span>
+                <span id="budget-overall-remaining">Remaining: USh 0</span>
+              </div>
+            </div>
+
+            <!-- Category Budgets Grid -->
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin: 1.5rem 0 1rem;">Category Budgets</h3>
+            <div class="cards-grid" id="budgets-container">
+              <!-- Populated dynamically -->
+            </div>
+
+            <div id="budgets-empty-state" class="empty-state" style="display: none; margin-top: 1rem;">
+              <div class="empty-state-icon"><i data-lucide="pie-chart"></i></div>
+              <h4 class="empty-state-title">No category budgets set</h4>
+              <p class="empty-state-text">Plan your spending for Food, Transport, Rent, and Airtime.</p>
+              <button class="btn-primary" onclick="window.app.openAddBudgetModal()">
+                <i data-lucide="plus"></i>
+                <span>Create a Budget</span>
+              </button>
+            </div>
+          </section>
+
+          <!-- ========================================== -->
+          <!-- 5. SAVINGS GOALS VIEW -->
+          <!-- ========================================== -->
+          <section id="view-savings" class="view-section">
+            <div class="card-header" style="margin-bottom: 1rem;">
+              <div>
+                <h2 style="font-size: 1.25rem; font-weight: 700;">Savings Goals</h2>
+                <p class="stat-subtext">Track milestones like Business Capital, Land, School Fees & Emergency Fund</p>
+              </div>
+              <button class="btn-primary" onclick="window.app.openAddGoalModal()">
+                <i data-lucide="plus"></i>
+                <span>New Savings Goal</span>
+              </button>
+            </div>
+
+            <div class="cards-grid" id="savings-container">
+              <!-- Populated dynamically -->
+            </div>
+
+            <div id="savings-empty-state" class="empty-state" style="display: none;">
+              <div class="empty-state-icon"><i data-lucide="piggy-bank"></i></div>
+              <h4 class="empty-state-title">No savings goals yet</h4>
+              <p class="empty-state-text">Build your financial future. Create your first goal today.</p>
+              <button class="btn-primary" onclick="window.app.openAddGoalModal()">
+                <i data-lucide="plus"></i>
+                <span>Create Your First Goal</span>
+              </button>
+            </div>
+          </section>
+
+          <!-- ========================================== -->
+          <!-- 6. DEBTS VIEW -->
+          <!-- ========================================== -->
+          <section id="view-debts" class="view-section">
+            <div class="card-header" style="margin-bottom: 1rem;">
+              <div>
+                <h2 style="font-size: 1.25rem; font-weight: 700;">Debt Management</h2>
+                <p class="stat-subtext">Track money you owe (creditors) and money owed to you (debtors)</p>
+              </div>
+              <button class="btn-primary" onclick="window.app.openAddDebtModal()">
+                <i data-lucide="plus"></i>
+                <span>Record Debt</span>
+              </button>
+            </div>
+
+            <!-- Debt Type Tabs -->
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem;">
+              <button id="debt-tab-i-owe" class="btn-primary" style="flex: 1; justify-content: center;">
+                <i data-lucide="arrow-up-right"></i>
+                <span>Money I Owe (<span id="count-i-owe">0</span>)</span>
+              </button>
+              <button id="debt-tab-owed-to-me" class="btn-secondary" style="flex: 1; justify-content: center;">
+                <i data-lucide="arrow-down-left"></i>
+                <span>Money Owed to Me (<span id="count-owed-to-me">0</span>)</span>
+              </button>
+            </div>
+
+            <div class="cards-grid" id="debts-container">
+              <!-- Populated dynamically -->
+            </div>
+
+            <div id="debts-empty-state" class="empty-state" style="display: none;">
+              <div class="empty-state-icon"><i data-lucide="hand-coins"></i></div>
+              <h4 class="empty-state-title">No debts recorded</h4>
+              <p class="empty-state-text">Keep accurate records of all loans and borrowed funds.</p>
+              <button class="btn-primary" onclick="window.app.openAddDebtModal()">
+                <i data-lucide="plus"></i>
+                <span>Add Debt Record</span>
+              </button>
+            </div>
+          </section>
+
+          <!-- ========================================== -->
+          <!-- 7. REPORTS VIEW -->
+          <!-- ========================================== -->
+          <section id="view-reports" class="view-section">
+            <div class="card-header" style="margin-bottom: 1rem;">
+              <div>
+                <h2 style="font-size: 1.25rem; font-weight: 700;">Financial Reports & Analytics</h2>
+                <p class="stat-subtext">Detailed breakdown, trends, and exportable financial summaries</p>
+              </div>
+
+              <!-- Export Actions -->
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button class="btn-secondary" id="report-print-btn" title="Print Report">
+                  <i data-lucide="printer"></i>
+                  <span>Print</span>
+                </button>
+                <button class="btn-secondary" id="report-export-csv-btn">
+                  <i data-lucide="file-text"></i>
+                  <span>CSV</span>
+                </button>
+                <button class="btn-secondary" id="report-export-excel-btn">
+                  <i data-lucide="file-spreadsheet"></i>
+                  <span>Excel</span>
+                </button>
+                <button class="btn-primary" id="report-export-pdf-btn">
+                  <i data-lucide="download"></i>
+                  <span>PDF</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Date Range Controls -->
+            <div class="filter-toolbar">
+              <select id="report-period-select">
+                <option value="today">Today</option>
+                <option value="this_week">This Week</option>
+                <option value="this_month" selected>This Month</option>
+                <option value="last_month">Last Month</option>
+                <option value="this_year">This Year</option>
+                <option value="custom">Custom Date Range</option>
+              </select>
+
+              <div id="report-custom-dates" style="display: none; gap: 0.5rem; align-items: center;">
+                <input type="date" id="report-start-date" />
+                <span>to</span>
+                <input type="date" id="report-end-date" />
+                <button class="btn-primary" id="report-apply-custom-dates">Apply</button>
+              </div>
+            </div>
+
+            <!-- Printable Financial Statement Container -->
+            <div id="printable-report-area">
+              <!-- Report KPI Cards -->
+              <div class="stats-grid">
+                <div class="stat-card">
+                  <div class="stat-label">Total Inflow</div>
+                  <div class="stat-value amount-income" id="rep-total-income">USh 0</div>
+                  <div class="stat-subtext">Received in period</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Total Outflow</div>
+                  <div class="stat-value amount-expense" id="rep-total-expense">USh 0</div>
+                  <div class="stat-subtext">Spent in period</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Net Balance</div>
+                  <div class="stat-value" id="rep-net-balance">USh 0</div>
+                  <div class="stat-subtext">Income minus Expense</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Avg. Daily Spend</div>
+                  <div class="stat-value" id="rep-avg-daily">USh 0</div>
+                  <div class="stat-subtext">Across active days</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Top Category</div>
+                  <div class="stat-value" style="font-size: 1.15rem;" id="rep-top-category">-</div>
+                  <div class="stat-subtext" id="rep-top-category-amount">USh 0</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Highest Expense</div>
+                  <div class="stat-value" style="font-size: 1.15rem;" id="rep-highest-expense">-</div>
+                  <div class="stat-subtext" id="rep-highest-expense-amount">USh 0</div>
+                </div>
+              </div>
+
+              <!-- Report Charts Grid -->
+              <div class="dashboard-grid">
+                <div class="card">
+                  <h3 class="card-title" style="margin-bottom: 1rem;">Income vs. Expenses</h3>
+                  <div style="height: 260px; position: relative;">
+                    <canvas id="chart-report-income-vs-expense"></canvas>
+                  </div>
+                </div>
+                <div class="card">
+                  <h3 class="card-title" style="margin-bottom: 1rem;">Spending by Category</h3>
+                  <div style="height: 260px; position: relative;">
+                    <canvas id="chart-report-category-breakdown"></canvas>
+                  </div>
+                </div>
+              </div>
+
+              <div class="dashboard-grid">
+                <div class="card">
+                  <h3 class="card-title" style="margin-bottom: 1rem;">Spending Over Time</h3>
+                  <div style="height: 260px; position: relative;">
+                    <canvas id="chart-report-spending-trend"></canvas>
+                  </div>
+                </div>
+                <div class="card">
+                  <h3 class="card-title" style="margin-bottom: 1rem;">Payment Methods Distribution</h3>
+                  <div style="height: 260px; position: relative;">
+                    <canvas id="chart-report-payment-methods"></canvas>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Detailed Summary Table -->
+              <div class="card">
+                <h3 class="card-title" style="margin-bottom: 1rem;">Category Breakdown Summary</h3>
+                <div class="table-responsive">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Category</th>
+                        <th>Transactions</th>
+                        <th>Total Spent</th>
+                        <th>% of Total</th>
+                      </tr>
+                    </thead>
+                    <tbody id="report-category-summary-tbody">
+                      <!-- Populated dynamically -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ========================================== -->
+          <!-- 8. SETTINGS VIEW -->
+          <!-- ========================================== -->
+          <section id="view-settings" class="view-section">
+            <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">Settings & Preferences</h2>
+
+            <div class="cards-grid">
+              <!-- Profile Card -->
+              <div class="card">
+                <h3 class="card-title" style="margin-bottom: 1rem;">User Profile</h3>
+                <form id="profile-form">
+                  <div class="form-group" style="margin-bottom: 0.85rem;">
+                    <label class="form-label">Full Name</label>
+                    <input type="text" id="profile-name-input" placeholder="e.g. Kasule David" />
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0.85rem;">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" id="profile-email-input" placeholder="name@example.com" />
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0.85rem;">
+                    <label class="form-label">Phone Number (MTN / Airtel)</label>
+                    <input type="tel" id="profile-phone-input" placeholder="e.g. +256 770 123456" />
+                  </div>
+                  <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Currency Symbol</label>
+                    <input type="text" id="profile-currency-input" value="USh" />
+                    <span class="form-hint">Default: Ugandan Shillings (UGX / USh)</span>
+                  </div>
+                  <button type="submit" class="btn-primary">Save Profile</button>
+                </form>
+              </div>
+
+              <!-- Appearance Card -->
+              <div class="card">
+                <h3 class="card-title" style="margin-bottom: 1rem;">Appearance & Display</h3>
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <div style="font-weight: 600;">Theme Mode</div>
+                      <div class="stat-subtext">Toggle between light and dark palette</div>
+                    </div>
+                    <button class="btn-secondary" id="settings-theme-toggle">
+                      <i data-lucide="moon" id="settings-theme-icon"></i>
+                      <span id="settings-theme-text">Dark Mode</span>
+                    </button>
+                  </div>
+
+                  <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 1rem;">
+                    <div>
+                      <div style="font-weight: 600;">Progressive Web App</div>
+                      <div class="stat-subtext">Install on phone or desktop</div>
+                    </div>
+                    <button class="btn-secondary" id="settings-install-pwa">
+                      <i data-lucide="download"></i>
+                      <span>Install PWA</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Category Manager Card -->
+              <div class="card">
+                <div class="card-header">
+                  <h3 class="card-title">Manage Categories</h3>
+                  <button class="btn-primary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;" onclick="window.app.openAddCategoryModal()">
+                    <i data-lucide="plus"></i>
+                    <span>Add Category</span>
+                  </button>
+                </div>
+                <div id="settings-categories-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: 240px; overflow-y: auto;">
+                  <!-- Populated dynamically -->
+                </div>
+              </div>
+
+              <!-- Supabase Cloud Sync Configuration -->
+              <div class="card">
+                <h3 class="card-title" style="margin-bottom: 0.5rem;">Supabase Cloud Database</h3>
+                <p class="stat-subtext" style="margin-bottom: 1rem;">
+                  Connect your real Supabase project to sync data across devices and invite team members.
+                </p>
+                <form id="supabase-config-form">
+                  <div class="form-group" style="margin-bottom: 0.85rem;">
+                    <label class="form-label">Supabase Project URL</label>
+                    <input type="text" id="supabase-url-input" placeholder="https://xyzcompany.supabase.co" />
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0.85rem;">
+                    <label class="form-label">Supabase Anon Public Key</label>
+                    <input type="password" id="supabase-anon-key-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />
+                    <span class="form-hint">Safe for frontend use. Never enter your service_role secret key.</span>
+                  </div>
+                  <div style="display: flex; gap: 0.75rem;">
+                    <button type="submit" class="btn-primary">Update Credentials</button>
+                  </div>
+                </form>
+              </div>
+
+              <!-- Data Backup & Export Card -->
+              <div class="card">
+                <h3 class="card-title" style="margin-bottom: 1rem;">Data Backup & Account</h3>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                  <button class="btn-secondary" id="backup-download-btn">
+                    <i data-lucide="download"></i>
+                    <span>Export Full JSON Backup</span>
+                  </button>
+                  <label class="btn-secondary" style="cursor: pointer; justify-content: center;">
+                    <i data-lucide="upload"></i>
+                    <span>Restore from JSON File</span>
+                    <input type="file" id="backup-import-input" accept=".json" style="display: none;" />
+                  </label>
+                  
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <!-- Mobile Bottom Navigation -->
+      <nav class="mobile-bottom-nav">
+        <a href="#dashboard" class="mobile-nav-item active" data-view="dashboard">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Home</span>
+        </a>
+        <a href="#expenses" class="mobile-nav-item" data-view="expenses">
+          <i data-lucide="credit-card"></i>
+          <span>Expenses</span>
+        </a>
+        <button class="mobile-add-btn" id="mobile-central-add-btn" title="Add Transaction" aria-label="Add Transaction">
+          <i data-lucide="plus"></i>
+        </button>
+        <a href="#reports" class="mobile-nav-item" data-view="reports">
+          <i data-lucide="bar-chart-3"></i>
+          <span>Reports</span>
+        </a>
+        <button class="mobile-nav-item" id="mobile-more-btn" aria-label="More Options">
+          <i data-lucide="menu"></i>
+          <span>More</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODALS -->
+    <!-- ========================================== -->
+
+    <!-- Modal: Add / Edit Expense -->
+    <div class="modal-overlay" id="modal-expense">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modal-expense-title">Add Expense</h3>
+          <button class="icon-btn" onclick="window.app.closeModal('modal-expense')"><i data-lucide="x"></i></button>
+        </div>
+        <form id="form-expense">
+          <div class="modal-body">
+            <input type="hidden" id="expense-id" />
+
+            <div class="form-group">
+              <label class="form-label">Amount (UGX / USh) *</label>
+              <input type="number" id="expense-amount" placeholder="e.g. 25000" min="1" step="any" required />
+              <span class="form-hint" id="expense-amount-hint">Enter amount in Ugandan Shillings</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Category *</label>
+              <div style="display: flex; gap: 0.5rem;">
+                <select id="expense-category" required style="flex: 1;">
+                  <option value="Food">Food</option>
+                  <option value="Transport">Transport</option>
+                  <option value="Rent">Rent</option>
+                  <option value="Utilities">Utilities</option>
+                  <option value="Airtime">Airtime</option>
+                  <option value="Internet">Internet</option>
+                  <option value="Shopping">Shopping</option>
+                  <option value="Education">Education</option>
+                  <option value="Medical">Medical</option>
+                  <option value="Entertainment">Entertainment</option>
+                  <option value="Family">Family</option>
+                  <option value="Business">Business</option>
+                  <option value="Church/Donations">Church/Donations</option>
+                  <option value="Debt/Loans">Debt/Loans</option>
+                  <option value="Other">Other</option>
+                </select>
+                <button type="button" class="btn-secondary" onclick="window.app.openAddCategoryModal()" title="Add Custom Category">
+                  <i data-lucide="plus"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Description *</label>
+              <input type="text" id="expense-description" placeholder="e.g. Matatu to Kampala, Lunch at Cafe Javas, Umeme Yaka tokens" required />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Date *</label>
+                <input type="date" id="expense-date" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Time</label>
+                <input type="time" id="expense-time" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Payment Method *</label>
+              <select id="expense-payment-method" required>
+                <option value="Cash">Cash</option>
+                <option value="Mobile Money">Mobile Money (MTN / Airtel)</option>
+                <option value="Bank">Bank Transfer / Centenary / Stanbic</option>
+                <option value="Visa/Mastercard">Visa / Mastercard</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Location</label>
+              <input type="text" id="expense-location" placeholder="e.g. Kampala Road, Entebbe, Wandegeya, Jinja" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Notes</label>
+              <textarea id="expense-notes" rows="2" placeholder="Additional notes, project name, or client name"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Receipt Image</label>
+              <input type="file" id="expense-receipt" accept="image/*" />
+              <span class="form-hint">Upload photo of receipt or bill</span>
+              <img id="expense-receipt-preview" class="receipt-preview-img" style="display: none;" alt="Receipt Preview" />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="window.app.closeModal('modal-expense')">Cancel</button>
+            <button type="submit" id="btn-save-expense" class="btn-primary">Save Expense</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Add / Edit Income -->
+    <div class="modal-overlay" id="modal-income">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modal-income-title">Add Income</h3>
+          <button class="icon-btn" onclick="window.app.closeModal('modal-income')"><i data-lucide="x"></i></button>
+        </div>
+        <form id="form-income">
+          <div class="modal-body">
+            <input type="hidden" id="income-id" />
+
+            <div class="form-group">
+              <label class="form-label">Amount (UGX / USh) *</label>
+              <input type="number" id="income-amount" placeholder="e.g. 1500000" min="1" step="any" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Source *</label>
+              <select id="income-source" required>
+                <option value="Salary">Salary</option>
+                <option value="Business income">Business income</option>
+                <option value="Freelance income">Freelance income</option>
+                <option value="Investment">Investment</option>
+                <option value="Gifts">Gifts</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Description *</label>
+              <input type="text" id="income-description" placeholder="e.g. Monthly Salary, Shop Sales, Web Design Client" required />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Date *</label>
+                <input type="date" id="income-date" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Payment Method *</label>
+                <select id="income-payment-method" required>
+                  <option value="Bank">Bank Deposit</option>
+                  <option value="Mobile Money">Mobile Money (MTN / Airtel)</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Notes</label>
+              <textarea id="income-notes" rows="2" placeholder="Optional notes"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="window.app.closeModal('modal-income')">Cancel</button>
+            <button type="submit" id="btn-save-income" class="btn-primary">Save Income</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Add / Edit Budget -->
+    <div class="modal-overlay" id="modal-budget">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modal-budget-title">Set Budget Limit</h3>
+          <button class="icon-btn" onclick="window.app.closeModal('modal-budget')"><i data-lucide="x"></i></button>
+        </div>
+        <form id="form-budget">
+          <div class="modal-body">
+            <input type="hidden" id="budget-id" />
+
+            <div class="form-group">
+              <label class="form-label">Category *</label>
+              <select id="budget-category" required>
+                <option value="Overall Monthly">Overall Monthly Budget</option>
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Monthly Limit (UGX) *</label>
+              <input type="number" id="budget-amount" placeholder="e.g. 500000" min="1" step="any" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Month & Year *</label>
+              <input type="month" id="budget-month" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Warning Alert Threshold (%)</label>
+              <input type="number" id="budget-threshold" value="80" min="50" max="100" />
+              <span class="form-hint">Warn me when spending reaches this percentage</span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="window.app.closeModal('modal-budget')">Cancel</button>
+            <button type="submit" class="btn-primary">Save Budget</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Add / Edit Savings Goal -->
+    <div class="modal-overlay" id="modal-goal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modal-goal-title">Create Savings Goal</h3>
+          <button class="icon-btn" onclick="window.app.closeModal('modal-goal')"><i data-lucide="x"></i></button>
+        </div>
+        <form id="form-goal">
+          <div class="modal-body">
+            <input type="hidden" id="goal-id" />
+
+            <div class="form-group">
+              <label class="form-label">Goal Title *</label>
+              <input type="text" id="goal-title" placeholder="e.g. Business Capital, Plot of Land, School Fees" required />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Target Amount (UGX) *</label>
+                <input type="number" id="goal-target" placeholder="e.g. 5000000" min="1" step="any" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Initial Amount (UGX)</label>
+                <input type="number" id="goal-current" placeholder="e.g. 500000" min="0" step="any" value="0" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Target Date</label>
+              <input type="date" id="goal-target-date" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Notes</label>
+              <textarea id="goal-notes" rows="2" placeholder="e.g. Savings account at Stanbic or MTN MoMo Save"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="window.app.closeModal('modal-goal')">Cancel</button>
+            <button type="submit" class="btn-primary">Save Goal</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Add Savings Deposit -->
+    <div class="modal-overlay" id="modal-deposit">
+      <div class="modal-content" style="max-width: 420px;">
+        <div class="modal-header">
+          <h3 class="modal-title">Add Money to Goal</h3>
+          <button class="icon-btn" onclick="window.app.closeModal('modal-deposit')"><i data-lucide="x"></i></button>
+        </div>
+        <form id="form-deposit">
+          <div class="modal-body">
+            <input type="hidden" id="deposit-goal-id" />
+            <div style="font-size: 0.95rem; font-weight: 600;" id="deposit-goal-name">Business Capital</div>
+            <div class="form-group">
+              <label class="form-label">Deposit Amount (UGX) *</label>
+              <input type="number" id="deposit-amount" placeholder="e.g. 100000" min="1" step="any" required />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="window.app.closeModal('modal-deposit')">Cancel</button>
+            <button type="submit" class="btn-primary">Deposit</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Add / Edit Debt Record -->
+    <div class="modal-overlay" id="modal-debt">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modal-debt-title">Record Debt</h3>
+          <button class="icon-btn" onclick="window.app.closeModal('modal-debt')"><i data-lucide="x"></i></button>
+        </div>
+        <form id="form-debt">
+          <div class="modal-body">
+            <input type="hidden" id="debt-id" />
+
+            <div class="form-group">
+              <label class="form-label">Debt Type *</label>
+              <select id="debt-type" required>
+                <option value="i_owe">Money I Owe (I am the Debtor)</option>
+                <option value="owed_to_me">Money Owed to Me (I am the Creditor)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Person / Entity Name *</label>
+              <input type="text" id="debt-person" placeholder="e.g. Uncle John, Mukwano SACCO, Sarah" required />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Total Amount (UGX) *</label>
+                <input type="number" id="debt-amount" placeholder="e.g. 350000" min="1" step="any" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Paid So Far (UGX)</label>
+                <input type="number" id="debt-paid" placeholder="0" min="0" step="any" value="0" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Date Borrowed / Lent *</label>
+                <input type="date" id="debt-date" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Due Date</label>
+                <input type="date" id="debt-due-date" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select id="debt-status">
+                <option value="Active">Active</option>
+                <option value="Partially Paid">Partially Paid</option>
+                <option value="Paid">Paid</option>
+                <option value="Overdue">Overdue</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Description / Purpose</label>
+              <textarea id="debt-description" rows="2" placeholder="e.g. Loan for business stock, emergency transport"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="window.app.closeModal('modal-debt')">Cancel</button>
+            <button type="submit" class="btn-primary">Save Record</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Record Debt Payment -->
+    <div class="modal-overlay" id="modal-debt-pay">
+      <div class="modal-content" style="max-width: 420px;">
+        <div class="modal-header">
+          <h3 class="modal-title">Record Debt Payment</h3>
+          <button class="icon-btn" onclick="window.app.closeModal('modal-debt-pay')"><i data-lucide="x"></i></button>
+        </div>
+        <form id="form-debt-pay">
+          <div class="modal-body">
+            <input type="hidden" id="debt-pay-id" />
+            <div id="debt-pay-person" style="font-weight: 700;">Person Name</div>
+            <div id="debt-pay-balance" class="stat-subtext">Remaining Balance: USh 0</div>
+            <div class="form-group" style="margin-top: 0.85rem;">
+              <label class="form-label">Payment Amount (UGX) *</label>
+              <input type="number" id="debt-payment-amount" min="1" step="any" required />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="window.app.closeModal('modal-debt-pay')">Cancel</button>
+            <button type="submit" class="btn-primary">Record Payment</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Add Custom Category -->
+    <div class="modal-overlay" id="modal-category">
+      <div class="modal-content" style="max-width: 440px;">
+        <div class="modal-header">
+          <h3 class="modal-title">Create Custom Category</h3>
+          <button class="icon-btn" onclick="window.app.closeModal('modal-category')"><i data-lucide="x"></i></button>
+        </div>
+        <form id="form-category">
+          <div class="modal-body">
+            <div class="form-group">
+              <label class="form-label">Category Name *</label>
+              <input type="text" id="cat-name" placeholder="e.g. Boda Boda, Yaka Power, School Lunch" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Type</label>
+              <select id="cat-type">
+                <option value="expense">Expense Category</option>
+                <option value="income">Income Category</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Color Accent</label>
+              <input type="color" id="cat-color" value="#0F766E" style="height: 42px; padding: 0.2rem;" />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="window.app.closeModal('modal-category')">Cancel</button>
+            <button type="submit" class="btn-primary">Create Category</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Authentication (Login / Register / Supabase) -->
+    <div class="modal-overlay" id="modal-auth">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title" id="auth-modal-title">Sign In to Daily Expense Manager</h3>
+          <button class="icon-btn" onclick="window.app.closeModal('modal-auth')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+          <form id="form-auth">
+            <div class="form-group" style="margin-bottom: 0.85rem;" id="auth-name-group">
+              <label class="form-label">Full Name</label>
+              <input type="text" id="auth-name" placeholder="e.g. Okello Grace" />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0.85rem;">
+              <label class="form-label">Email Address *</label>
+              <input type="email" id="auth-email" placeholder="name@example.com" required />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1rem;">
+              <label class="form-label">Password *</label>
+              <input type="password" id="auth-password" placeholder="••••••••" required minlength="6" />
+            </div>
+
+            <button type="submit" class="btn-primary" style="width: 100%; justify-content: center; margin-bottom: 0.75rem;" id="auth-submit-btn">
+              Sign In
+            </button>
+
+            <!-- Small error message under the form -->
+            <div id="auth-error-msg" class="notice-banner" style="display: none; margin-top: 0.5rem; background-color: var(--accent-red-light); border-color: var(--accent-red); color: var(--accent-red); font-size: 0.85rem;"></div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-top: 0.5rem;">
+              <a href="#" id="auth-switch-mode" style="color: var(--primary); font-weight: 600;">Don't have an account? Sign Up</a>
+              <a href="#" id="auth-forgot-password" style="color: var(--text-muted);">Forgot password?</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: View Receipt -->
+    <div class="modal-overlay" id="modal-receipt-viewer">
+      <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+          <h3 class="modal-title">Expense Receipt</h3>
+          <button class="icon-btn" onclick="window.app.closeModal('modal-receipt-viewer')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body" style="text-align: center;">
+          <img id="receipt-full-img" src="" alt="Expense Receipt" style="max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: var(--radius-md);" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Delete Confirmation -->
+    <div class="modal-overlay" id="modal-confirm">
+      <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+          <h3 class="modal-title">Confirm Deletion</h3>
+          <button class="icon-btn" onclick="window.app.closeModal('modal-confirm')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+          <p id="confirm-message" style="font-size: 0.95rem;">Are you sure you want to delete this record? This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="window.app.closeModal('modal-confirm')">Cancel</button>
+          <button type="button" class="btn-danger" id="confirm-delete-btn">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Mobile "More" Menu Sheet -->
+    <div class="modal-overlay" id="modal-mobile-more">
+      <div class="modal-content" style="max-width: 380px; align-self: flex-end; margin-bottom: calc(var(--bottom-nav-height) + 10px);">
+        <div class="modal-header">
+          <h3 class="modal-title">Menu & Navigation</h3>
+          <button class="icon-btn" onclick="window.app.closeModal('modal-mobile-more')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body" style="gap: 0.5rem;">
+          <button class="nav-link" onclick="window.app.navigate('income'); window.app.closeModal('modal-mobile-more');">
+            <i data-lucide="trending-up"></i>
+            <span>Income Management</span>
+          </button>
+          <button class="nav-link" onclick="window.app.navigate('budgets'); window.app.closeModal('modal-mobile-more');">
+            <i data-lucide="pie-chart"></i>
+            <span>Budgets & Limits</span>
+          </button>
+          <button class="nav-link" onclick="window.app.navigate('savings'); window.app.closeModal('modal-mobile-more');">
+            <i data-lucide="piggy-bank"></i>
+            <span>Savings Goals</span>
+          </button>
+          <button class="nav-link" onclick="window.app.navigate('debts'); window.app.closeModal('modal-mobile-more');">
+            <i data-lucide="hand-coins"></i>
+            <span>Debt Management</span>
+          </button>
+          <button class="nav-link" onclick="window.app.navigate('settings'); window.app.closeModal('modal-mobile-more');">
+            <i data-lucide="settings"></i>
+            <span>Settings & Preferences</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
+
+    <!-- Main JavaScript Logic -->
+    <script type="module" src="./app.js?v=4"></script>
+  </body>
+</html>

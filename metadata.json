@@ -1,0 +1,6 @@
+{
+  "name": "Daily Expense Manager Uganda",
+  "description": "A professional daily expense and personal finance manager tailored for Uganda (UGX / USh) with offline PWA support and Supabase integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
